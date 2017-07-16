@@ -28,7 +28,7 @@ class JobSpider():
     def spider(self):
         # 20-30万
         urls = [
-            "https://www.liepin.com/zhaopin/?pubTime=&compkind=&fromSearchBtn=2&ckid=9ebc3054fd98e3c3&isAnalysis=&init=-1&searchType=1&flushckid=1&dqs=010&industryType=industry_01&jobKind=&sortFlag=15&industries=030&salary=20$30&compscale=&key=%E6%B5%8B%E8%AF%95&clean_condition=&headckid=4da58c2fba8525a9"]
+            "https://www.liepin.com/zhaopin/?industries=040&dqs=010&salary=&jobKind=&pubTime=&compkind=&compscale=&industryType=industry_01&searchType=1&clean_condition=&isAnalysis=&init=1&sortFlag=15&flushckid=0&fromSearchBtn=1&headckid=808786ddb45f0c9d&key=%E6%B5%8B%E8%AF%95%E5%BC%80%E5%8F%91"]
         # 10-15万
         # urls = ["https://www.liepin.com/zhaopin/?pubTime=&compkind=&fromSearchBtn=2&ckid=bf3b1b149ff403ec&isAnalysis=&init=-1&searchType=1&flushckid=1&dqs=010&industryType=industry_01&jobKind=&sortFlag=15&industries=030&salary=10$15&compscale=&key=%E6%B5%8B%E8%AF%95&clean_condition=&headckid=4da58c2fba8525a9"]
         # 15-20万
@@ -55,10 +55,14 @@ class JobSpider():
                 href = job.find('h3').find('a')['href']
                 description = self.spider_description(href)
                 a_job = {'company_name': company_name, 'title': title, 'condition': condition,
-                         'industry': industry, 'time': time, 'description': description}
+                         'industry': industry, 'time': time, 'description': description, 'url':href}
 
                 # print href, company_name, title, condition, industry, time, description
                 many_jobs.append(a_job)
+        return many_jobs
+
+    def save_jobs(self):
+        many_jobs = self.spider()
         with open(r'.\data\jobs.csv', 'w') as f:
             f.write(codecs.BOM_UTF8)
             f_csv = csv.writer(f)
@@ -68,7 +72,7 @@ class JobSpider():
                        job.get('time').encode('utf-8'), job.get('description').encode('utf-8')]
                 f_csv.writerow(row)
 
-        print many_jobs
+        # print many_jobs
 
     def spider_description(self, href):
         '''input url of single job, get the description and job requirements.'''
@@ -109,52 +113,47 @@ class JobSpider():
                 # print (row[0], row[1])
                 f_csv.writerow((row[0].encode('utf-8'), row[1]))
 
+    def make_html(self):
+        prefer_company = ['Baidu', '腾讯', '阿里巴巴','美团点评','搜狗','小米','58同城','网易集团','京东金融集团'
+                          '今日头条','去哪儿','携程','360']
+        msg_html = '<html><body>'
+        many_jobs = self.spider()
+        for job in many_jobs:
+            if job.get('company_name').encode('utf-8') in prefer_company:
+                msg_html += '<a href="{0}">{1}</a>'.format(job.get('url').encode('utf-8'),job.get('title').encode('utf-8'))
+                msg_html += '<p>{0}, {1}, {2}, {3}</p>'.format(job.get('company_name').encode('utf-8'),
+                                                          job.get('condition').encode('utf-8'),
+                                                          job.get('time').encode('utf-8'),
+                                                          job.get('industry').encode('utf-8'))
+                msg_html += '<p>{0}</p>'.format(job.get('description').encode('utf-8'))
+        msg_html += '</body></html>'
 
-class Mail(object):
-    def __init__(self, fro, to, subject):
-        self.fro = fro
-        self.to = to
-        self.subject = subject
-        self.headers = {'X-Requested-With': 'XMLHttpRequest',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:47.0) Gecko/20100101 Firefox/47.0',
-                        'Referer': 'https://passport.liepin.com/ajaxproxy.html'}
-    def spider_filter(self):
-        url = "https://www.liepin.com/zhaopin/?pubTime=&ckid=c527f04876205fda&fromSearchBtn=2&compkind=&isAnalysis=&init=-1&searchType=1&flushckid=1&dqs=010&industryType=industry_01&jobKind=&sortFlag=15&industries=040&salary=20$30&compscale=&clean_condition=&key=%E6%B5%8B%E8%AF%95&headckid=4da58c2fba8525a9"
-        many_jobs = []
-        r = requests.get(url, headers=self.headers).content
-        pattern1 = re.compile('<ul class="sojob-list".*?</ul>', re.S)
-        pattern2 = re.compile('<li>.*?</li>', re.S)
-        sojob_list = re.search(pattern1, r)
-        sojob_list = sojob_list.group().replace('\r\n','')
-        # print sojob_list.group()
-        job_result = re.findall(pattern2, sojob_list)
-        # for i in result:
-        #     print i
-        pprint(job_result)
-        # print r
-        # print type(r)
-        return ''.join(job_result)
+        # print msg_html
+        return msg_html
+
     def send_mail(self):
         username = '313449377@qq.com'
         password = 'aeqaapfdmpbcbjga'
         smtp_server = 'smtp.qq.com'
+        fro = '313449377@qq.com'
+        to = 'doingdd_cool@163.com'
         msg = MIMEMultipart('related')
         msg['Subject'] = 'This is important message'
 
-        job = self.spider_filter()
-        msg = MIMEText(job,'html','utf-8')
+        msg_html = self.make_html()
+        msg = MIMEText(msg_html,'html','utf-8')
 
         smtp = smtplib.SMTP_SSL(smtp_server, 465)
         # smtp = smtplib.SMTP()
         # smtp.connect('smtp.qq.com')
         smtp.login(username, password)
-        smtp.sendmail(self.fro, self.to, msg.as_string())
+        smtp.sendmail(fro, to, msg.as_string())
         smtp.quit()
 
 
 tester = JobSpider()
 # tester.spider()
-# tester.word_cloud()
-mail_sender = Mail(fro='313449377@qq.com', to='doingdd_cool@163.com', subject='I am Du Ying')
-mail_sender.send_mail()
-# mail_sender.spider_filter()
+tester.save_jobs()
+tester.word_cloud()
+# tester.make_html()
+tester.send_mail()
