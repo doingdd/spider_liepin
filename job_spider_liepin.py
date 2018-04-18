@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # coding: utf-8
 import cProfile
 from pprint import pprint
@@ -39,7 +40,7 @@ class JobSpider():
 
         r = requests.get(urls[0], headers=self.headers).content
         page_list = BeautifulSoup(r, 'lxml').find("div", class_="pagerbar").find_all("a", string=re.compile('\d+'))
-        urls.extend([i['href'] for i in page_list if i['href'] != 'javascript:;'])
+        urls.extend(['https://www.liepin.com' + i['href'] for i in page_list if i['href'] != 'javascript:;'])
         pprint(urls)
         many_jobs = []
         for url in urls:
@@ -51,22 +52,29 @@ class JobSpider():
                 condition = job.find('p', class_='condition clearfix')['title']
                 time = job.find('p', class_='time-info').find('time').string
                 company_name = job.find('p', class_='company-name').find('a')['title'][2:]
-                industry = job.find('a', class_='industry-link').string
+                try:
+                    industry = job.find('p', class_='field-financing').find('a', class_='industry-link').string
+                except:
+                    industry = job.find('p', class_='field-financing').find('span').string
                 href = job.find('h3').find('a')['href']
+                if not href.startswith('https:'):
+                    href = 'https://www.liepin.com' + href
                 description = self.spider_description(href)
-                a_job = {'company_name': company_name, 'title': title, 'condition': condition,
-                         'industry': industry, 'time': time, 'description': description, 'url':href}
+                if description:
+                    a_job = {'company_name': company_name, 'title': title, 'condition': condition,
+                             'industry': industry, 'time': time, 'description': description, 'url':href}
 
                 # print href, company_name, title, condition, industry, time, description
-                many_jobs.append(a_job)
+                    many_jobs.append(a_job)
         return many_jobs
 
     def save_jobs(self):
         many_jobs = self.spider()
-        with open(r'.\data\jobs.csv', 'w') as f:
+        with open(r'/root/spider_liepin/data/jobs.csv', 'w') as f:
             f.write(codecs.BOM_UTF8)
             f_csv = csv.writer(f)
             for job in many_jobs:
+                print job
                 row = [job.get('company_name').encode('utf-8'), job.get('title').encode('utf-8'),
                        job.get('condition').encode('utf-8'), job.get('industry').encode('utf-8'),
                        job.get('time').encode('utf-8'), job.get('description').encode('utf-8')]
@@ -79,13 +87,14 @@ class JobSpider():
         description = ""
         r = requests.get(href, headers=self.headers).content
         bs = BeautifulSoup(r, 'lxml').find('div', class_='content content-word')
-        for string in bs.stripped_strings:
-            description += (string + '\n')
-        return description
+        if bs:
+            for string in bs.stripped_strings:
+                description += (string + '\n')
+            return description
 
     def word_cloud(self):
         description = ""
-        with open(r'.\data\jobs.csv') as f:
+        with open(r'/root/spider_liepin/data/jobs.csv') as f:
             f_csv = csv.reader(f)
             for row in f_csv:
                 description += row[5]
@@ -93,20 +102,20 @@ class JobSpider():
         print type(description)
         r1 = "[(进行)(以上)(以及)]+".decode('utf-8')
         description = re.sub(r1, "".decode('utf-8'), description.decode('utf-8'))
-        jieba.load_userdict(r".\data\user_dict.txt")
+        jieba.load_userdict(r"/root/spider_liepin/data/user_dict.txt")
         seg_list = jieba.cut(description, cut_all=False)
         counter = dict()
         for seg in seg_list:
             if len(seg) > 1:
                 counter[seg] = counter.get(seg, 1) + 1
-        wordcloud = WordCloud(font_path=r".\font\msyh.ttf",
+        wordcloud = WordCloud(font_path=r"/root/spider_liepin/font/msyh.ttf",
                               max_words=100, height=600, width=1200).generate_from_frequencies(counter)
         # plt.imshow(wordcloud)
         # plt.axis('off')
         # plt.show()
-        wordcloud.to_file(r'.\images\wordcloud.jpg')
+        wordcloud.to_file(r'/root/spider_liepin/images/wordcloud.jpg')
         counter_sort = sorted(counter.items(), key=lambda value: value[1], reverse=True)
-        with open(r'.\data\counter.csv', 'wb') as f:
+        with open(r'/root/spider_liepin/data/counter.csv', 'wb') as f:
             f.write(codecs.BOM_UTF8)
             f_csv = csv.writer(f)
             for row in counter_sort:
@@ -114,7 +123,9 @@ class JobSpider():
                 f_csv.writerow((row[0].encode('utf-8'), row[1]))
 
     def make_html(self):
-        prefer_company = ['Baidu', '腾讯', '阿里巴巴','美团点评','搜狗','小米','58同城','网易集团','京东金融集团'
+        #prefer_company = ['美团点评','唯品会','Baidu', '腾讯', '阿里巴巴','搜狗','小米','58同城','网易集团','京东金融集团',
+                          #'今日头条','去哪儿','携程','360']
+        prefer_company = ['美团点评','唯品会','搜狗','小米','58同城','网易集团',
                           '今日头条','去哪儿','携程','360']
         msg_html = '<html><body>'
         many_jobs = self.spider()
